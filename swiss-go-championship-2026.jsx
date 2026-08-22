@@ -6,6 +6,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
    Shared data is stored with the artifact storage API.
    ============================================================ */
 
+const ORGANIZER_PIN = "goban-1145"; // change before publishing; client-side only (deterrent, not security)
+
 const K = {
   regs: "sgc2026-registrations-v2",
   chat: "sgc2026-chat-v2",
@@ -73,11 +75,9 @@ function mergeById(a, b) {
 
 async function loadKey(key) {
   try {
-    const r = await fetch(`/api/storage?key=${encodeURIComponent(key)}`);
-    if (!r.ok) return [];
-    const data = await r.json();
-    if (!data || !data.value) return [];
-    const parsed = JSON.parse(data.value);
+    const r = await window.storage.get(key, true);
+    if (!r || !r.value) return [];
+    const parsed = JSON.parse(r.value);
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
     return []; // key does not exist yet, or read failed
@@ -86,41 +86,8 @@ async function loadKey(key) {
 
 async function saveKey(key, arr) {
   try {
-    const r = await fetch(`/api/storage`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ key, value: JSON.stringify(arr) }),
-    });
-    return r.ok;
-  } catch (e) {
-    return false;
-  }
-}
-
-// Organizer-only variants: hit the Cloudflare Access-protected endpoint
-// instead. If Access hasn't authenticated this browser yet, these calls
-// fail (ok: false) rather than silently succeeding.
-async function loadOrganizerKey(key) {
-  try {
-    const r = await fetch(`/api/organizer/storage?key=${encodeURIComponent(key)}`);
-    if (!r.ok) return { ok: false, data: [], organizer: null };
-    const data = await r.json();
-    if (!data || typeof data.value === "undefined") return { ok: false, data: [], organizer: null };
-    const parsed = data.value ? JSON.parse(data.value) : [];
-    return { ok: true, data: Array.isArray(parsed) ? parsed : [], organizer: data.organizer || null };
-  } catch (e) {
-    return { ok: false, data: [], organizer: null };
-  }
-}
-
-async function saveOrganizerKey(key, arr) {
-  try {
-    const r = await fetch(`/api/organizer/storage`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ key, value: JSON.stringify(arr) }),
-    });
-    return r.ok;
+    const r = await window.storage.set(key, JSON.stringify(arr), true);
+    return !!r;
   } catch (e) {
     return false;
   }
@@ -720,7 +687,7 @@ const TABS = [
 const EMPTY_FORM = { firstName: "", lastName: "", club: "", swiss: "", rank: "", email: "" };
 
 export default function App() {
-  const storageOK = true; // backed by Cloudflare Pages Function + KV, see functions/api/storage.js
+  const storageOK = typeof window !== "undefined" && !!window.storage;
 
   const [tab, setTab] = useState("overview");
   const [regs, setRegs] = useState([]);
@@ -748,9 +715,8 @@ export default function App() {
 
   // organiser
   const [orgOpen, setOrgOpen] = useState(false);
-  const [orgChecking, setOrgChecking] = useState(false);
-  const [orgCheckErr, setOrgCheckErr] = useState("");
-  const [orgEmail, setOrgEmail] = useState("");
+  const [pinInput, setPinInput] = useState("");
+  const [pinErr, setPinErr] = useState(false);
   const [isOrg, setIsOrg] = useState(false);
   const [copiedEmails, setCopiedEmails] = useState(false);
   const [copiedAddr, setCopiedAddr] = useState(false);
@@ -934,9 +900,9 @@ export default function App() {
       winner: rf.winner,
       note: rf.note.trim(),
     };
-    const cur = await loadOrganizerKey(K.results);
-    const merged = mergeById(cur.data, [entry]);
-    const ok = await saveOrganizerKey(K.results, merged);
+    const cur = await loadKey(K.results);
+    const merged = mergeById(cur, [entry]);
+    const ok = await saveKey(K.results, merged);
     if (ok) {
       setResults(merged);
       setRf((f) => ({ ...f, black: "", white: "", note: "" }));
@@ -962,51 +928,38 @@ export default function App() {
   };
 
   /* ---- organiser ---- */
-  // Organizer status is decided by Cloudflare Access, not a client-side
-  // secret. This just asks the protected endpoint whether *this browser*
-  // has already completed the Access login; if not, the caller is guided
-  // to open the sign-in link in a new tab first.
-  const tryOrganizerLogin = async () => {
-    setOrgChecking(true);
-    setOrgCheckErr("");
-    const res = await loadOrganizerKey(K.regs);
-    if (res.ok) {
+  const tryPin = () => {
+    if (pinInput.trim() === ORGANIZER_PIN) {
       setIsOrg(true);
       setOrgOpen(false);
-      setOrgEmail(res.organizer || "");
-      setRegs(res.data); // full data, including emails
+      setPinInput("");
+      setPinErr(false);
     } else {
-      setOrgCheckErr(
-        "Not signed in yet. Open the sign-in link below in a new tab, complete the Cloudflare login, then come back and click this button again."
-      );
+      setPinErr(true);
     }
-    setOrgChecking(false);
   };
 
   const deleteReg = async (id) => {
-    const cur = await loadOrganizerKey(K.regs);
-    if (!cur.ok) return;
-    const next = cur.data.filter((r) => r.id !== id);
-    if (await saveOrganizerKey(K.regs, next)) setRegs(next);
+    const cur = await loadKey(K.regs);
+    const next = cur.filter((r) => r.id !== id);
+    if (await saveKey(K.regs, next)) setRegs(next);
   };
 
   const deleteResult = async (id) => {
-    const cur = await loadOrganizerKey(K.results);
-    if (!cur.ok) return;
-    const next = cur.data.filter((r) => r.id !== id);
-    if (await saveOrganizerKey(K.results, next)) setResults(next);
+    const cur = await loadKey(K.results);
+    const next = cur.filter((r) => r.id !== id);
+    if (await saveKey(K.results, next)) setResults(next);
   };
 
   const deleteMsg = async (id) => {
-    const cur = await loadOrganizerKey(K.chat);
-    if (!cur.ok) return;
-    const next = cur.data.filter((m) => m.id !== id);
-    if (await saveOrganizerKey(K.chat, next)) setChat(next.slice(-300));
+    const cur = await loadKey(K.chat);
+    const next = cur.filter((m) => m.id !== id);
+    if (await saveKey(K.chat, next)) setChat(next.slice(-300));
     pendingRef.current.delete(id);
   };
 
   const clearChat = async () => {
-    if (await saveOrganizerKey(K.chat, [])) {
+    if (await saveKey(K.chat, [])) {
       setChat([]);
       pendingRef.current.clear();
     }
@@ -1737,25 +1690,24 @@ export default function App() {
 
               {isOrg ? (
                 <p className="note">
-                  Signed in as organiser{orgEmail ? ` (${orgEmail})` : ""} via Cloudflare Access.{" "}
-                  <button className="linklike" onClick={() => { setIsOrg(false); setOrgOpen(false); setOrgEmail(""); }}>
+                  <button className="linklike" onClick={() => { setIsOrg(false); setOrgOpen(false); }}>
                     Sign out of organiser mode
                   </button>
                 </p>
               ) : orgOpen ? (
                 <p className="note" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <span>
-                    Organiser actions are protected by Cloudflare Access, not a PIN. If you haven't signed in on this
-                    device yet,{" "}
-                    <a href="/api/organizer/storage?key=sgc2026-registrations-v2" target="_blank" rel="noreferrer">
-                      open the sign-in link
-                    </a>{" "}
-                    in a new tab, complete the login there, then come back.
-                  </span>
-                  <button className="btn small" onClick={tryOrganizerLogin} disabled={orgChecking}>
-                    {orgChecking ? "Checking…" : "I've signed in"}
-                  </button>
-                  {orgCheckErr && <span className="err" style={{ marginTop: 0 }}>{orgCheckErr}</span>}
+                  <span>Organiser PIN:</span>
+                  <input
+                    className="in"
+                    style={{ maxWidth: 150, padding: "6px 10px" }}
+                    type="password"
+                    value={pinInput}
+                    onChange={(e) => setPinInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") tryPin(); }}
+                    aria-label="Organiser PIN"
+                  />
+                  <button className="btn small" onClick={tryPin}>Unlock</button>
+                  {pinErr && <span className="err" style={{ marginTop: 0 }}>Wrong PIN.</span>}
                 </p>
               ) : (
                 <p className="note">
