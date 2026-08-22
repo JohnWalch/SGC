@@ -75,9 +75,11 @@ function mergeById(a, b) {
 
 async function loadKey(key) {
   try {
-    const r = await window.storage.get(key, true);
-    if (!r || !r.value) return [];
-    const parsed = JSON.parse(r.value);
+    const r = await fetch(`/api/storage?key=${encodeURIComponent(key)}`);
+    if (!r.ok) return [];
+    const data = await r.json();
+    if (!data || !data.value) return [];
+    const parsed = JSON.parse(data.value);
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
     return []; // key does not exist yet, or read failed
@@ -86,8 +88,12 @@ async function loadKey(key) {
 
 async function saveKey(key, arr) {
   try {
-    const r = await window.storage.set(key, JSON.stringify(arr), true);
-    return !!r;
+    const r = await fetch(`/api/storage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ key, value: JSON.stringify(arr) }),
+    });
+    return r.ok;
   } catch (e) {
     return false;
   }
@@ -687,7 +693,7 @@ const TABS = [
 const EMPTY_FORM = { firstName: "", lastName: "", club: "", swiss: "", rank: "", email: "" };
 
 export default function App() {
-  const storageOK = typeof window !== "undefined" && !!window.storage;
+  const storageOK = true; // backed by Cloudflare Pages Function + KV, see functions/api/storage.js
 
   const [tab, setTab] = useState("overview");
   const [regs, setRegs] = useState([]);

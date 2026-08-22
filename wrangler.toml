@@ -1,0 +1,10 @@
+name = "swiss-go-championship-2026"
+pages_build_output_dir = "dist"
+compatibility_date = "2024-09-01"
+
+# Create a KV namespace ("wrangler kv namespace create SGC_KV") and paste its id
+# below, or bind it via the Cloudflare dashboard: Pages project -> Settings ->
+# Functions -> KV namespace bindings -> variable name "SGC_KV".
+[[kv_namespaces]]
+binding = "SGC_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
