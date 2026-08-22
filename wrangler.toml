@@ -7,4 +7,4 @@ compatibility_date = "2024-09-01"
 # Functions -> KV namespace bindings -> variable name "SGC_KV".
 [[kv_namespaces]]
 binding = "SGC_KV"
-id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+id = "8615b9c77fba4c7eae0f7106da49c4c1"
