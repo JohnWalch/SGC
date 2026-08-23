@@ -43,7 +43,7 @@ const SCHEDULE = [
       ["12:15", "Registration closes", "Please confirm your presence at the tournament desk before 12:15."],
       ["12:30", "Round 1", ""],
       ["15:30", "Round 2", ""],
-      ["≈17:30", "Dinner break", ""],
+      ["18:00", "Dinner break", ""],
       ["19:00", "Round 3", ""],
     ],
   },
@@ -263,8 +263,9 @@ const CSS = `
   }
   @keyframes stonepop { from { transform: scale(0.35); } to { transform: scale(1); } }
   .board-cap {
-    font-size: 10.5px; color: #63501f; margin: 10px 0 0;
+    font-size: 10.5px; color: #63501f; margin: 0 auto 18px;
     text-align: center; letter-spacing: 0.06em;
+    max-width: 340px;
   }
   .board-ctrl { display: flex; justify-content: center; gap: 8px; margin-top: 8px; }
   .board-btn {
@@ -548,7 +549,7 @@ function simulateGame(moves) {
 
 const GAME_FRAMES = simulateGame(GAME_MOVES);
 
-function HeroBoard() {
+function useHeroBoard() {
   const total = GAME_MOVES.length;
   const prefersReduced = () =>
     typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -561,6 +562,11 @@ function HeroBoard() {
     return () => clearTimeout(t);
   }, [step, playing, total]);
 
+  return { step, setStep, total, playing, setPlaying };
+}
+
+function HeroBoard({ board }) {
+  const { step, setStep, total, playing, setPlaying } = board;
   const p = (i) => 20 + i * 22;
   const hoshi = [3, 9, 15];
   const stones = GAME_FRAMES[step];
@@ -624,9 +630,6 @@ function HeroBoard() {
           />
         )}
       </svg>
-      <p className="board-cap mono">
-        Replaying the 1933 “Game of the Century” · Go Seigen vs Honinbo Shusai · move {step} / {total}
-      </p>
       <div className="board-ctrl">
         <button className="board-btn" onClick={() => setPlaying((v) => !v)}>{playing ? "Pause" : "Play"}</button>
         <button className="board-btn" onClick={() => { setStep(0); setPlaying(true); }}>Restart</button>
@@ -723,6 +726,7 @@ const EMPTY_FORM = { firstName: "", lastName: "", club: "", swiss: "", rank: "",
 export default function App() {
   const storageOK = true; // backed by Cloudflare Pages Function + KV, see functions/api/storage.js
 
+  const heroBoard = useHeroBoard();
   const [tab, setTab] = useState("overview");
   const [regs, setRegs] = useState([]);
   const [chat, setChat] = useState([]);
@@ -1091,6 +1095,9 @@ export default function App() {
               <div className="seal-stamp" aria-hidden="true">碁</div>
               <p className="kicker">Sat–Sun · 19–20 September 2026 · Brugg (AG), Switzerland</p>
               <h1 className="title">Swiss Go Championship 2026</h1>
+              <p className="board-cap mono">
+                Replaying the 1933 “Game of the Century” · Go Seigen vs Honinbo Shusai · move {heroBoard.step} / {heroBoard.total}
+              </p>
               <p className="lede">
                 The national Go championship of Switzerland: five rounds and a renowned teacher, thirty
                 minutes from Zürich. Players of every strength and every nationality are welcome.
@@ -1106,7 +1113,7 @@ export default function App() {
               </div>
             </div>
             <div className="board-wrap">
-              <HeroBoard />
+              <HeroBoard board={heroBoard} />
             </div>
           </div>
         </header>
@@ -1283,6 +1290,9 @@ export default function App() {
                       Reserved for the eight strongest Swiss players. Five rounds in the Swiss system, all games even,
                       no handicap. The winner becomes Swiss Champion 2026.
                     </p>
+                    <p className="note" style={{ marginTop: 8 }}>
+                      Based on the latest official rules from the Swiss Go Federation.
+                    </p>
                   </div>
                   <div className="card">
                     <p className="mini-lbl">Open to everyone</p>
@@ -1304,10 +1314,6 @@ export default function App() {
 
             <Section title="Rules & format">
               <div className="card">
-                <p className="note" style={{ marginTop: 0, marginBottom: 12 }}>
-                  Based on the latest official rules from the Swiss Go Federation, the tournament follows the
-                  format below.
-                </p>
                 <dl className="defs">
                   <div className="def-row">
                     <dt>Rounds</dt>
