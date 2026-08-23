@@ -496,6 +496,8 @@ const CSS = `
   .footer p { margin: 0 0 8px; font-size: 14px; }
   .footer a { color: #f0e5c8; }
   .footer .linklike { color: #f0e5c8; }
+  .foot-organiser { max-width: 1060px; margin: 22px auto 0; font-size: 13px; color: #b9ab86; }
+  .foot-organiser .err { color: #e8a98c; }
   .foot-bottom { max-width: 1060px; margin: 26px auto 0; font-size: 12.5px; color: #9b8c67; border-top: 1px solid rgba(216, 204, 174, 0.25); padding-top: 14px; }
 
   @media (max-width: 860px) {
@@ -1801,34 +1803,6 @@ export default function App() {
                 );
               })}
 
-              {isOrg ? (
-                <p className="note">
-                  Signed in as organiser{orgEmail ? ` (${orgEmail})` : ""} via Cloudflare Access.{" "}
-                  <button className="linklike" onClick={() => { setIsOrg(false); setOrgOpen(false); setOrgEmail(""); }}>
-                    Sign out of organiser mode
-                  </button>
-                </p>
-              ) : orgOpen ? (
-                <p className="note" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <span>
-                    Organiser actions are protected by Cloudflare Access, not a PIN. If you haven't signed in on this
-                    device yet,{" "}
-                    <a href="/api/organizer/storage?key=sgc2026-registrations-v2" target="_blank" rel="noreferrer">
-                      open the sign-in link
-                    </a>{" "}
-                    in a new tab, complete the login there, then come back.
-                  </span>
-                  <button className="btn small" onClick={tryOrganizerLogin} disabled={orgChecking}>
-                    {orgChecking ? "Checking…" : "I've signed in"}
-                  </button>
-                  {orgCheckErr && <span className="err" style={{ marginTop: 0 }}>{orgCheckErr}</span>}
-                </p>
-              ) : (
-                <p className="note">
-                  Tournament staff:{" "}
-                  <button className="linklike" onClick={() => setOrgOpen(true)}>organiser sign-in</button>
-                </p>
-              )}
             </div>
           </Section>
         )}
@@ -1929,6 +1903,38 @@ export default function App() {
             </p>
           </div>
         </div>
+
+        <div className="foot-organiser">
+          {isOrg ? (
+            <p>
+              Signed in as organiser{orgEmail ? ` (${orgEmail})` : ""} via Cloudflare Access.{" "}
+              <button className="linklike" onClick={() => { setIsOrg(false); setOrgOpen(false); setOrgEmail(""); }}>
+                Sign out of organiser mode
+              </button>
+            </p>
+          ) : orgOpen ? (
+            <p style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span>
+                Organiser actions are protected by Cloudflare Access, not a PIN. If you haven't signed in on this
+                device yet,{" "}
+                <a href="/api/organizer/storage?key=sgc2026-registrations-v2" target="_blank" rel="noreferrer">
+                  open the sign-in link
+                </a>{" "}
+                in a new tab, complete the login there, then come back.
+              </span>
+              <button className="btn small" onClick={tryOrganizerLogin} disabled={orgChecking}>
+                {orgChecking ? "Checking…" : "I've signed in"}
+              </button>
+              {orgCheckErr && <span className="err" style={{ marginTop: 0 }}>{orgCheckErr}</span>}
+            </p>
+          ) : (
+            <p>
+              Tournament staff:{" "}
+              <button className="linklike" onClick={() => setOrgOpen(true)}>organiser sign-in</button>
+            </p>
+          )}
+        </div>
+
         <div className="foot-bottom">Kaya, stones and clamshell. See you at the board. · Swiss Go Championship 2026</div>
       </footer>
     </div>
