@@ -800,7 +800,12 @@ export default function App() {
       try {
         if (tab === "chat" || first) await refreshChat();
         if (tab === "register" || tab === "results" || first) {
-          const r = await loadKey(K.regs);
+          // Organizers get the full record (including email) via the
+          // Access-protected endpoint; everyone else gets the public,
+          // email-stripped view. Without this check, the periodic poll
+          // would overwrite an organizer's already-unlocked email column
+          // with the stripped public data within a few seconds.
+          const r = isOrg ? (await loadOrganizerKey(K.regs)).data : await loadKey(K.regs);
           if (alive) setRegs(r);
         }
         if (tab === "results" || first) {
@@ -823,7 +828,7 @@ export default function App() {
       alive = false;
       clearInterval(t);
     };
-  }, [tab, storageOK]);
+  }, [tab, storageOK, isOrg]);
 
   /* ---- chat autoscroll ---- */
   useEffect(() => {
