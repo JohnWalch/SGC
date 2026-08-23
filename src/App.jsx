@@ -98,6 +98,29 @@ async function saveKey(key, arr) {
   }
 }
 
+// Append-only write for keys whose public GET view is redacted (currently
+// just registrations, which has emails stripped out). The server merges
+// this single entry into the real, unstripped list -- the client never
+// reads or re-posts the full array, so it can't clobber other people's
+// emails. Returns the resulting public (stripped) list on success, or null
+// on failure.
+async function appendKey(key, entry) {
+  try {
+    const r = await fetch(`/api/storage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ key, entry }),
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    if (!data || !data.value) return null;
+    const parsed = JSON.parse(data.value);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // Organizer-only variants: hit the Cloudflare Access-protected endpoint
 // instead. If Access hasn't authenticated this browser yet, these calls
 // fail (ok: false) rather than silently succeeding.
@@ -871,13 +894,13 @@ export default function App() {
     let confirmed = false;
     for (let i = 0; i < 3 && !confirmed; i++) {
       try {
-        const cur = await loadKey(K.regs);
-        const merged = mergeById(cur, [entry]);
-        await saveKey(K.regs, merged);
-        await sleep(650);
-        const back = await loadKey(K.regs);
-        if (back.some((r) => r.id === entry.id)) {
-          setRegs(back);
+        // Append-only: the server merges this entry into the real,
+        // unstripped registrations list on its own. We never read the
+        // (email-stripped) public list and post it back, so nobody else's
+        // email can be clobbered by this submission.
+        const result = await appendKey(K.regs, entry);
+        if (result && result.some((r) => r.id === entry.id)) {
+          setRegs(result);
           confirmed = true;
         }
       } catch (err) {
