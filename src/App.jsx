@@ -43,7 +43,8 @@ const SCHEDULE = [
       ["12:15", "Registration closes", "Please confirm your presence at the tournament desk before 12:15."],
       ["12:30", "Round 1", ""],
       ["15:30", "Round 2", ""],
-      ["18:30", "Round 3", ""],
+      ["≈17:30", "Dinner break", ""],
+      ["19:00", "Round 3", ""],
     ],
   },
   {
@@ -51,7 +52,7 @@ const SCHEDULE = [
     date: "20 September 2026",
     rows: [
       ["10:00", "Round 4", ""],
-      ["≈12:30", "Lunch break", "Between rounds 4 and 5, once your game has finished."],
+      ["≈12:30", "Lunch break", ""],
       ["13:30", "Round 5", ""],
       ["16:00", "Closing ceremony", "Prize giving for both tournaments."],
     ],
@@ -255,7 +256,7 @@ const CSS = `
     padding: 4px 11px; background: rgba(251, 248, 240, 0.55);
   }
   .board-wrap { display: grid; justify-items: center; }
-  .board { width: 100%; max-width: 430px; filter: drop-shadow(0 14px 24px rgba(70, 45, 5, 0.4)); }
+  .board { width: 100%; max-width: 340px; filter: drop-shadow(0 14px 24px rgba(70, 45, 5, 0.4)); }
   .stone-pop {
     transform-box: fill-box; transform-origin: center;
     animation: stonepop 0.2s cubic-bezier(0.2, 1.4, 0.4, 1);
@@ -1091,8 +1092,8 @@ export default function App() {
               <p className="kicker">Sat–Sun · 19–20 September 2026 · Brugg (AG), Switzerland</p>
               <h1 className="title">Swiss Go Championship 2026</h1>
               <p className="lede">
-                The national Go championship of Switzerland: five rounds and a whole weekend at the
-                board, thirty minutes from Zürich. Players of every strength and every nationality are welcome.
+                The national Go championship of Switzerland: five rounds and a renowned teacher, thirty
+                minutes from Zürich. Players of every strength and every nationality are welcome.
               </p>
               <div className="cta-row">
                 <button className="btn" onClick={() => setTab("register")}>Register now</button>
@@ -1127,8 +1128,8 @@ export default function App() {
                 <div className="card">
                   <p className="mini-lbl">Where</p>
                   <p>
-                    FHNW Campus Brugg-Windisch, Building 1, Klosterzelgstrasse 2, 5210 Windisch, five minutes on foot
-                    from Brugg railway station.
+                    <strong>FHNW Campus Brugg-Windisch, Building 1</strong>, Klosterzelgstrasse 2, 5210 Windisch, five
+                    minutes on foot from Brugg railway station.
                   </p>
                   <button className="linklike" onClick={() => setTab("venue")}>Map &amp; travel details</button>
                 </div>
@@ -1142,7 +1143,7 @@ export default function App() {
                 </div>
                 <div className="card">
                   <p className="mini-lbl">Format</p>
-                  <p>Five rounds. Fischer timing: 45 minutes plus 15 seconds per move. Japanese rules, komi 6.5.</p>
+                  <p><strong>Five rounds. Fischer timing</strong>: 45 minutes plus 15 seconds per move. Japanese rules, komi 6.5.</p>
                   <button className="linklike" onClick={() => setTab("tournaments")}>Full rules</button>
                 </div>
               </div>
@@ -1203,7 +1204,7 @@ export default function App() {
                   </table>
                 </div>
                 <p style={{ marginTop: 12 }}>
-                  Other players receive non-cash prizes, and the winner of the Swiss Go Championship takes
+                  <strong>Other players receive non-cash prizes</strong>, and the winner of the Swiss Go Championship takes
                   the title of <strong>Swiss Champion 2026</strong>.
                 </p>
               </div>
@@ -1222,7 +1223,7 @@ export default function App() {
                       The game is about 4,000 years old, the oldest in the world still played in its original form,
                       and its simple rules hide staggering depth: with roughly 250 choices per move, a game can unfold
                       in around 10<sup>360</sup> different ways, vastly more than there are atoms in the observable
-                      universe. Curious? Spectators are welcome to drop by and watch.
+                      universe. <strong>Curious? Spectators are welcome to drop by and watch.</strong>
                     </p>
                     <blockquote className="quote">
                       <p>
@@ -1303,6 +1304,10 @@ export default function App() {
 
             <Section title="Rules & format">
               <div className="card">
+                <p className="note" style={{ marginTop: 0, marginBottom: 12 }}>
+                  Based on the latest official rules from the Swiss Go Federation, the tournament follows the
+                  format below.
+                </p>
                 <dl className="defs">
                   <div className="def-row">
                     <dt>Rounds</dt>
@@ -1853,7 +1858,6 @@ export default function App() {
           <div>
             <h5>Swiss Go Championship 2026</h5>
             <p>19–20 September 2026 · FHNW Campus Brugg-Windisch, Building 1, room 1.145.</p>
-            <p>Two tournaments: the Championship for the top 8 Swiss players, the Open for everyone else.</p>
           </div>
           <div>
             <h5>Contact</h5>
@@ -1861,11 +1865,6 @@ export default function App() {
               Questions, registration changes or cancellations:
               <br />
               John Walch: <a href={"mailto:" + CONTACT_EMAIL}>{CONTACT_EMAIL}</a>
-            </p>
-            <p>
-              Emergency phone during the tournament:
-              <br />
-              <a className="mono" href={"tel:" + EMERGENCY_PHONE_TEL}>{EMERGENCY_PHONE_DISPLAY}</a>
             </p>
           </div>
         </div>
