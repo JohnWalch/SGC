@@ -43,7 +43,7 @@ const SCHEDULE = [
       ["12:15", "Registration closes", "Please confirm your presence at the tournament desk before 12:15."],
       ["12:30", "Round 1", ""],
       ["15:30", "Round 2", ""],
-      ["18:00", "Dinner break", ""],
+      ["≈18:00", "Dinner break", ""],
       ["19:00", "Round 3", ""],
     ],
   },
@@ -263,9 +263,9 @@ const CSS = `
   }
   @keyframes stonepop { from { transform: scale(0.35); } to { transform: scale(1); } }
   .board-cap {
-    font-size: 10.5px; color: #63501f; margin: 0 auto 18px;
+    font-size: 10.5px; color: #63501f; margin: 10px auto 0;
     text-align: center; letter-spacing: 0.06em;
-    max-width: 340px;
+    max-width: 340px; width: 100%;
   }
   .board-ctrl { display: flex; justify-content: center; gap: 8px; margin-top: 8px; }
   .board-btn {
@@ -630,6 +630,9 @@ function HeroBoard({ board }) {
           />
         )}
       </svg>
+      <p className="board-cap mono">
+        Replaying the 1933 “Game of the Century” · Go Seigen vs Honinbo Shusai · move {step} / {total}
+      </p>
       <div className="board-ctrl">
         <button className="board-btn" onClick={() => setPlaying((v) => !v)}>{playing ? "Pause" : "Play"}</button>
         <button className="board-btn" onClick={() => { setStep(0); setPlaying(true); }}>Restart</button>
@@ -1095,9 +1098,6 @@ export default function App() {
               <div className="seal-stamp" aria-hidden="true">碁</div>
               <p className="kicker">Sat–Sun · 19–20 September 2026 · Brugg (AG), Switzerland</p>
               <h1 className="title">Swiss Go Championship 2026</h1>
-              <p className="board-cap mono">
-                Replaying the 1933 “Game of the Century” · Go Seigen vs Honinbo Shusai · move {heroBoard.step} / {heroBoard.total}
-              </p>
               <p className="lede">
                 The national Go championship of Switzerland: five rounds and a renowned teacher, thirty
                 minutes from Zürich. Players of every strength and every nationality are welcome.
