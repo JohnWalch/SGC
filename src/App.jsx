@@ -760,7 +760,6 @@ export default function App() {
   const [orgCheckErr, setOrgCheckErr] = useState("");
   const [orgEmail, setOrgEmail] = useState("");
   const [isOrg, setIsOrg] = useState(false);
-  const [copiedEmails, setCopiedEmails] = useState(false);
   const [copiedAddr, setCopiedAddr] = useState(false);
   const [confirmId, setConfirmId] = useState("");
   const confirmTimer = useRef(null);
@@ -1069,6 +1068,34 @@ export default function App() {
       ),
     [regs]
   );
+
+  const csvEscape = (val) => {
+    const s = String(val ?? "");
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+
+  const downloadRegsCsv = () => {
+    const headers = ["First name", "Last name", "Club / City", "Swiss", "Rank", "Email", "Registered"];
+    const rows = sortedRegs.map((r) => [
+      r.firstName,
+      r.lastName,
+      r.club,
+      r.swiss === "yes" ? "Yes" : "No",
+      r.rank,
+      r.email,
+      r.ts ? new Date(r.ts).toISOString() : "",
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "sgc2026-registrations.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   /* ---- render ---- */
   return (
@@ -1558,9 +1585,9 @@ export default function App() {
                     <button
                       className="btn small secondary"
                       style={{ marginLeft: "auto" }}
-                      onClick={() => copyText(sortedRegs.map((r) => r.email).join(", "), setCopiedEmails)}
+                      onClick={downloadRegsCsv}
                     >
-                      {copiedEmails ? "Emails copied ✓" : "Copy all emails"}
+                      Download CSV
                     </button>
                   )}
                 </div>
