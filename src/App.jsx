@@ -72,6 +72,46 @@ function mergeById(a, b) {
   return [...m.values()].sort((x, y) => (x.ts || 0) - (y.ts || 0));
 }
 
+// Parses an OpenGotha "standings" HTML export (the file an organiser
+// downloads from OpenGotha for a tournament/round) into a plain
+// headers+rows structure that can be rendered directly. This is
+// intentionally generic -- it doesn't try to understand Swiss vs.
+// MacMahon scoring, it just reproduces whichever columns OpenGotha put in
+// the file (Num, Pl, Name, Rank, Co, Club, NbW, one column per round
+// played so far, and the tie-break columns), so it keeps working
+// regardless of how many rounds have been played or which system a
+// tournament uses. A cell is marked `win` if OpenGotha bolded it (its
+// convention for "this player won this game").
+function parseStandingsHtml(text) {
+  let doc;
+  try {
+    doc = new DOMParser().parseFromString(text, "text/html");
+  } catch (e) {
+    return null;
+  }
+  const table = doc.querySelector("table");
+  if (!table) return null;
+
+  const clean = (s) => (s || "").replace(/ /g, " ").replace(/\s+/g, " ").trim();
+
+  const headers = Array.from(table.querySelectorAll("th")).map((th) => clean(th.textContent));
+  const rows = Array.from(table.querySelectorAll("tr"))
+    .filter((tr) => tr.querySelector("td"))
+    .map((tr) => ({
+      cells: Array.from(tr.querySelectorAll("td")).map((td) => ({
+        text: clean(td.textContent),
+        win: !!td.querySelector("b"),
+      })),
+    }));
+
+  if (!headers.length || !rows.length) return null;
+
+  const h4 = doc.querySelector("h4");
+  const source = h4 ? clean(h4.textContent) : "";
+
+  return { headers, rows, source };
+}
+
 async function loadKey(key) {
   try {
     const r = await fetch(`/api/storage?key=${encodeURIComponent(key)}`);
@@ -444,17 +484,17 @@ const CSS = `
   .sendrow { display: flex; gap: 10px; margin-top: 12px; }
   .sendrow .in { flex: 1; }
 
-  .result-chip {
-    display: inline-block; font-family: var(--mono); font-size: 12.5px; font-weight: 700;
-    background: rgba(46, 80, 119, 0.1); color: var(--ai-deep);
-    border-radius: 999px; padding: 3px 10px; white-space: nowrap;
+  .standings-tbl th, .standings-tbl td { white-space: nowrap; font-size: 13px; padding: 7px 9px; }
+  .standings-tbl td.mono strong { color: var(--ai-deep); font-weight: 700; }
+
+  .round-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .round-pick {
+    appearance: none; cursor: pointer; font: inherit;
+    background: #fff; border: 1px solid var(--line); color: var(--muted);
+    font-size: 12.5px; font-weight: 700; padding: 6px 12px; border-radius: 999px;
   }
-  .round-h {
-    font-family: var(--mono); font-size: 11.5px; font-weight: 700;
-    letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
-    margin: 16px 0 4px;
-  }
-  .round-h:first-of-type { margin-top: 4px; }
+  .round-pick:hover { border-color: var(--ai); color: var(--ai-deep); }
+  .round-pick.active { background: var(--ai); border-color: var(--ai); color: #fff; }
 
   .phone-box {
     background: #fbeee6; border: 1px solid #e2b49b; border-radius: 12px;
@@ -789,10 +829,13 @@ export default function App() {
   const [confirmId, setConfirmId] = useState("");
   const confirmTimer = useRef(null);
 
-  // result entry
-  const [rf, setRf] = useState({ tournament: "championship", round: "1", black: "", white: "", winner: "B", note: "" });
+  // standings upload
+  const [rf, setRf] = useState({ tournament: "championship", round: "1" });
   const [rfErr, setRfErr] = useState("");
   const [rfBusy, setRfBusy] = useState(false);
+  const [rfParsed, setRfParsed] = useState(null); // { headers, rows, source, fileName } from the chosen file
+  const [rfFileKey, setRfFileKey] = useState(0); // bump to reset the <input type="file"> after a successful upload
+  const [viewRound, setViewRound] = useState({}); // { championship: 2, open: 1 } -- which uploaded round each tournament card is showing; unset = latest
 
   /* ---- data polling ---- */
   useEffect(() => {
@@ -948,55 +991,81 @@ export default function App() {
   /* ---- results ---- */
   const setRfF = (k) => (e) => setRf((f) => ({ ...f, [k]: e.target.value }));
 
-  const addResult = async () => {
-    const black = rf.black.trim();
-    const white = rf.white.trim();
-    if (!black || !white) {
-      setRfErr("Enter both players.");
-      return;
+  // Reads the chosen OpenGotha standings export and parses it right away,
+  // so the organiser gets immediate feedback if the file doesn't look
+  // right, before they click "Upload standings".
+  const onStandingsFile = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    setRfParsed(null);
+    setRfErr("");
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = parseStandingsHtml(text);
+      if (!parsed) {
+        setRfErr("Couldn't find a standings table in that file. Make sure it's the HTML export from OpenGotha.");
+        return;
+      }
+      setRfParsed({ ...parsed, fileName: file.name });
+    } catch (err) {
+      setRfErr("Couldn't read that file.");
     }
-    if (black.toLowerCase() === white.toLowerCase()) {
-      setRfErr("Black and White must be different players.");
+  };
+
+  // Standings are a full snapshot per tournament + round (each upload
+  // replaces only the snapshot for that exact tournament/round, so earlier
+  // rounds stay browsable), not individual game results to merge --
+  // OpenGotha's export is already the complete, correctly computed table
+  // for everyone who has played so far.
+  const uploadStandings = async () => {
+    if (!rfParsed) {
+      setRfErr("Choose a standings file first.");
       return;
     }
     setRfErr("");
     setRfBusy(true);
+    const round = parseInt(rf.round, 10);
     const entry = {
-      id: uid(),
-      ts: Date.now(),
+      id: rf.tournament + ":" + round,
       tournament: rf.tournament,
-      round: parseInt(rf.round, 10),
-      black,
-      white,
-      winner: rf.winner,
-      note: rf.note.trim(),
+      round,
+      uploadedAt: Date.now(),
+      source: rfParsed.source,
+      headers: rfParsed.headers,
+      rows: rfParsed.rows,
     };
     const cur = await loadOrganizerKey(K.results);
-    const merged = mergeById(cur.data, [entry]);
-    const ok = await saveOrganizerKey(K.results, merged);
+    if (!cur.ok) {
+      setRfErr("Not signed in as organiser anymore. Sign in again and retry.");
+      setRfBusy(false);
+      return;
+    }
+    const next = cur.data.filter((r) => r.id !== entry.id);
+    next.push(entry);
+    const ok = await saveOrganizerKey(K.results, next);
     if (ok) {
-      setResults(merged);
-      setRf((f) => ({ ...f, black: "", white: "", note: "" }));
+      setResults(next);
+      setRfParsed(null);
+      setRfFileKey((k) => k + 1);
+      // Show the round that was just uploaded rather than leaving the
+      // viewer stuck on whatever round they'd previously selected.
+      setViewRound((v) => ({ ...v, [entry.tournament]: entry.round }));
     } else {
-      setRfErr("The result could not be saved, please try again.");
+      setRfErr("The standings could not be saved, please try again.");
     }
     setRfBusy(false);
   };
 
-  const resultsFor = (t) => results.filter((r) => r.tournament === t);
-
-  const standingsFor = (t) => {
-    const map = new Map();
-    resultsFor(t).forEach((r) => {
-      [r.black, r.white].forEach((n) => {
-        if (!map.has(n)) map.set(n, { name: n, w: 0, g: 0 });
-        map.get(n).g += 1;
-      });
-      const winName = r.winner === "B" ? r.black : r.white;
-      map.get(winName).w += 1;
-    });
-    return [...map.values()].sort((a, b) => b.w - a.w || a.g - b.g || a.name.localeCompare(b.name));
+  const removeStandings = async (tournament, round) => {
+    const cur = await loadOrganizerKey(K.results);
+    if (!cur.ok) return;
+    const next = cur.data.filter((r) => !(r.tournament === tournament && r.round === round));
+    if (await saveOrganizerKey(K.results, next)) setResults(next);
   };
+
+  // All uploaded snapshots for a tournament, oldest round first.
+  const snapshotsFor = (t) =>
+    results.filter((r) => r.tournament === t).sort((a, b) => a.round - b.round);
 
   /* ---- organiser ---- */
   // Organizer status is decided by Cloudflare Access, not a client-side
@@ -1025,13 +1094,6 @@ export default function App() {
     if (!cur.ok) return;
     const next = cur.data.filter((r) => r.id !== id);
     if (await saveOrganizerKey(K.regs, next)) setRegs(next);
-  };
-
-  const deleteResult = async (id) => {
-    const cur = await loadOrganizerKey(K.results);
-    if (!cur.ok) return;
-    const next = cur.data.filter((r) => r.id !== id);
-    if (await saveOrganizerKey(K.results, next)) setResults(next);
   };
 
   const deleteMsg = async (id) => {
@@ -1678,8 +1740,11 @@ export default function App() {
 
               {isOrg && (
                 <div className="card">
-                  <h3>Enter a result</h3>
-                  <p className="note" style={{ marginBottom: 14 }}>Saved results are visible to everyone immediately.</p>
+                  <h3>Update standings</h3>
+                  <p className="note" style={{ marginBottom: 14 }}>
+                    Upload the standings file exported from OpenGotha for a tournament and round. This replaces
+                    whatever was previously shown for that tournament and is visible to everyone immediately.
+                  </p>
                   <div className="form-grid">
                     <div className="field">
                       <label className="lbl" htmlFor="r-t">Tournament</label>
@@ -1696,107 +1761,95 @@ export default function App() {
                         ))}
                       </select>
                     </div>
-                    <div className="field">
-                      <label className="lbl" htmlFor="r-b">Black</label>
-                      <input id="r-b" className="in" list="playerNames" value={rf.black} onChange={setRfF("black")} placeholder="Player name" />
-                    </div>
-                    <div className="field">
-                      <label className="lbl" htmlFor="r-w">White</label>
-                      <input id="r-w" className="in" list="playerNames" value={rf.white} onChange={setRfF("white")} placeholder="Player name" />
-                    </div>
-                    <div className="field">
-                      <label className="lbl" htmlFor="r-win">Winner</label>
-                      <select id="r-win" className="in" value={rf.winner} onChange={setRfF("winner")}>
-                        <option value="B">⚫ Black wins</option>
-                        <option value="W">⚪ White wins</option>
-                      </select>
-                    </div>
-                    <div className="field">
-                      <label className="lbl" htmlFor="r-note">Margin (optional)</label>
-                      <input id="r-note" className="in" value={rf.note} onChange={setRfF("note")} placeholder="e.g. 3.5 or R" />
+                    <div className="field span2">
+                      <label className="lbl" htmlFor="r-file">Standings file (.html, from OpenGotha)</label>
+                      <input
+                        key={rfFileKey}
+                        id="r-file"
+                        className="in"
+                        type="file"
+                        accept=".html,.htm,text/html"
+                        onChange={onStandingsFile}
+                      />
                     </div>
                   </div>
-                  <button className="btn" onClick={addResult} disabled={rfBusy || !storageOK}>
-                    {rfBusy ? "Saving…" : "Add result"}
+                  <button className="btn" onClick={uploadStandings} disabled={rfBusy || !storageOK || !rfParsed}>
+                    {rfBusy ? "Uploading…" : "Upload standings"}
                   </button>
+                  {rfParsed && !rfErr && (
+                    <p className="note" style={{ marginTop: 8 }}>
+                      Loaded “{rfParsed.fileName}” · {rfParsed.rows.length} players. Click "Upload standings" to publish it.
+                    </p>
+                  )}
                   {rfErr && <p className="err">{rfErr}</p>}
-                  <datalist id="playerNames">
-                    {regs.map((r) => (
-                      <option key={r.id} value={r.firstName + " " + r.lastName} />
-                    ))}
-                  </datalist>
                 </div>
               )}
 
               {["championship", "open"].map((t) => {
-                const games = resultsFor(t);
-                const standing = standingsFor(t);
+                const snaps = snapshotsFor(t);
+                const rounds = snaps.map((s) => s.round);
+                const selectedRound = rounds.includes(viewRound[t]) ? viewRound[t] : rounds[rounds.length - 1];
+                const snap = snaps.find((s) => s.round === selectedRound);
                 return (
                   <div className="card" key={t}>
                     <p className="mini-lbl">{t === "championship" ? "Tournament 1" : "Tournament 2"}</p>
                     <h3>{TOURNAMENT_LABELS[t]}</h3>
-                    {games.length === 0 ? (
-                      <p className="note">No results yet for this tournament.</p>
+                    {!snap ? (
+                      <p className="note">No standings uploaded yet for this tournament.</p>
                     ) : (
                       <>
-                        <p className="mini-lbl" style={{ marginTop: 14 }}>Standings</p>
+                        {rounds.length > 1 && (
+                          <div className="round-picker">
+                            {rounds.map((n) => (
+                              <button
+                                key={n}
+                                className={"round-pick" + (n === selectedRound ? " active" : "")}
+                                onClick={() => setViewRound((v) => ({ ...v, [t]: n }))}
+                              >
+                                Round {n}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <p className="note" style={{ marginTop: 4, marginBottom: 12 }}>
+                          Standings after round {snap.round}{snap.source ? " · " + snap.source : ""}
+                        </p>
                         <div className="tbl-scroll">
-                          <table className="tbl">
+                          <table className="tbl standings-tbl">
                             <thead>
                               <tr>
-                                <th>#</th>
-                                <th>Player</th>
-                                <th>Wins</th>
-                                <th>Games</th>
+                                {snap.headers.map((h, i) => (
+                                  <th key={i}>{h}</th>
+                                ))}
                               </tr>
                             </thead>
                             <tbody>
-                              {standing.map((s, i) => (
-                                <tr key={s.name}>
-                                  <td className="pos">{i + 1}</td>
-                                  <td><strong>{s.name}</strong></td>
-                                  <td className="mono">{s.w}</td>
-                                  <td className="mono">{s.g}</td>
+                              {snap.rows.map((row, ri) => (
+                                <tr key={ri}>
+                                  {row.cells.map((c, ci) => (
+                                    <td key={ci} className="mono">
+                                      {c.win ? <strong>{c.text}</strong> : c.text}
+                                    </td>
+                                  ))}
                                 </tr>
                               ))}
                             </tbody>
                           </table>
                         </div>
-                        <p className="note" style={{ marginTop: 6 }}>
-                          Final placings also apply the official tie-breakers (SOS-1, then direct confrontation).
-                        </p>
-                        <p className="mini-lbl" style={{ marginTop: 16 }}>Games</p>
-                        {[1, 2, 3, 4, 5].map((n) => {
-                          const rg = games.filter((g) => g.round === n);
-                          if (rg.length === 0) return null;
-                          return (
-                            <div key={n}>
-                              <p className="round-h">Round {n}</p>
-                              <div className="tbl-scroll">
-                                <table className="tbl">
-                                  <tbody>
-                                    {rg.map((g) => (
-                                      <tr key={g.id}>
-                                        <td>⚫ {g.winner === "B" ? <strong>{g.black}</strong> : g.black}</td>
-                                        <td>⚪ {g.winner === "W" ? <strong>{g.white}</strong> : g.white}</td>
-                                        <td>
-                                          <span className="result-chip">
-                                            {(g.winner === "B" ? "B+" : "W+") + (g.note ? g.note : "")}
-                                          </span>
-                                        </td>
-                                        {isOrg && (
-                                          <td>
-                                            <button className="x-btn" onClick={() => confirmThen("res:" + g.id, () => deleteResult(g.id))} aria-label="Delete result">{confirmId === "res:" + g.id ? "Sure?" : "×"}</button>
-                                          </td>
-                                        )}
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          );
-                        })}
+                        {isOrg && (
+                          <p className="note" style={{ marginTop: 10 }}>
+                            <button
+                              className="linklike"
+                              onClick={() =>
+                                confirmThen("std:" + t + ":" + snap.round, () => removeStandings(t, snap.round))
+                              }
+                            >
+                              {confirmId === "std:" + t + ":" + snap.round
+                                ? "Really remove round " + snap.round + " standings?"
+                                : "Remove round " + snap.round + " standings (organiser)"}
+                            </button>
+                          </p>
+                        )}
                       </>
                     )}
                   </div>
