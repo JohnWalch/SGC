@@ -1294,6 +1294,23 @@ export default function App() {
                   <strong>Other players receive non-cash prizes</strong>, and the winner of the Swiss Go Championship takes
                   the title of <strong>Swiss Champion 2026</strong>.
                 </p>
+                <div
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12, marginTop: 14,
+                    paddingTop: 14, borderTop: "1px solid var(--line)",
+                  }}
+                >
+                  <img
+                    src="https://kifubara.app/static/brand/capybara.png"
+                    alt="Kifubara logo"
+                    style={{ width: 40, height: 40, borderRadius: 8, flexShrink: 0 }}
+                  />
+                  <p style={{ margin: 0 }}>
+                    <strong>Kifubara</strong> is sponsoring the event: every participant gets <strong>3 months of Kifubara's
+                    top plan for free</strong>, for AI game analysis, study tools, and more. Check it out at{" "}
+                    <a href="https://kifubara.app/" target="_blank" rel="noopener noreferrer">kifubara.app ↗</a>.
+                  </p>
+                </div>
               </div>
             </Section>
 
