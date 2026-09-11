@@ -469,6 +469,7 @@ const CSS = `
     color: #93331b; font-weight: 700; border-radius: 7px; padding: 2px 9px; font-size: 13px;
   }
   .x-btn:hover { background: rgba(188, 67, 39, 0.22); }
+  .rank-edit { width: auto; padding: 4px 7px; font-size: 13px; border-radius: 7px; }
 
   /* ---- chat ---- */
   .chatbox {
@@ -1046,6 +1047,13 @@ export default function App() {
     const cur = await loadOrganizerKey(K.regs);
     if (!cur.ok) return;
     const next = cur.data.filter((r) => r.id !== id);
+    if (await saveOrganizerKey(K.regs, next)) setRegs(next);
+  };
+
+  const updateRegRank = async (id, rank) => {
+    const cur = await loadOrganizerKey(K.regs);
+    if (!cur.ok) return;
+    const next = cur.data.map((r) => (r.id === id ? { ...r, rank } : r));
     if (await saveOrganizerKey(K.regs, next)) setRegs(next);
   };
 
@@ -1659,7 +1667,22 @@ export default function App() {
                             <td className="pos">{i + 1}</td>
                             <td><strong>{r.firstName} {r.lastName}</strong></td>
                             <td>{r.club}</td>
-                            <td className="mono">{r.rank}</td>
+                            <td className="mono">
+                              {isOrg ? (
+                                <select
+                                  className="in rank-edit"
+                                  value={r.rank}
+                                  onChange={(e) => updateRegRank(r.id, e.target.value)}
+                                  aria-label={"Change rank for " + r.firstName + " " + r.lastName}
+                                >
+                                  {RANKS.map((rk) => (
+                                    <option key={rk} value={rk}>{rk}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                r.rank
+                              )}
+                            </td>
                             <td>{r.swiss === "yes" ? "🇨🇭" : "–"}</td>
                             {isOrg && <td className="mono" style={{ fontSize: 12.5 }}>{r.email}</td>}
                             {isOrg && (
